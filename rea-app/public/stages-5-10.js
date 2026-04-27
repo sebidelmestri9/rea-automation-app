@@ -278,31 +278,60 @@ async function renderStage10() {
 
   setTopbar('Stage 10 / 10', 'Final Report',
     `<button class="btn btn-secondary" onclick="App.goStage(9)">← Back</button>
-     <button class="btn btn-primary" onclick="window.open('/api/export/${State.project.id}/html','_blank')">📄 Open Report</button>`);
+     <button class="btn btn-primary" onclick="generateReport()">📑 Generate Report</button>`);
 
   setContent(`
     <div class="section-heading">🎉 REA Complete</div>
-    <div class="section-sub">Your Rapid Evidence Assessment is ready. Open the report to review all findings.</div>
+    <div class="section-sub">All 10 stages done. Generate your full evidence report below.</div>
     <div class="stats-grid">
       <div class="stat-card"><div class="stat-number">${stats.total||0}</div><div class="stat-label">Records screened</div></div>
       <div class="stat-card"><div class="stat-number">${stats.taIncluded||0}</div><div class="stat-label">After title screening</div></div>
       <div class="stat-card"><div class="stat-number" style="color:var(--green)">${stats.ftIncluded||0}</div><div class="stat-label">Included studies</div></div>
       <div class="stat-card"><div class="stat-number">${(stats.taExcluded||0)+(stats.ftExcluded||0)}</div><div class="stat-label">Excluded</div></div>
     </div>
-    <div class="card">
-      <div class="card-title" style="margin-bottom:16px">Report Contents</div>
-      <ul style="color:var(--text2);font-size:0.88em;line-height:2;padding-left:20px">
-        <li>Research question & PICOC framework</li>
+
+    <!-- ── REPORT CTA ── -->
+    <div class="card" style="margin-bottom:20px;border:2px solid rgba(99,102,241,.35);background:linear-gradient(135deg,rgba(79,70,229,.08),rgba(124,58,237,.08))">
+      <div class="card-header" style="border-bottom:none">
+        <div>
+          <div class="card-title" style="font-size:1.05em">📑 Generate Final Report</div>
+          <div class="card-subtitle">Opens a complete HTML report — print or save as PDF for submission.</div>
+        </div>
+        <button
+          id="btn-generate-report"
+          onclick="generateReport()"
+          style="
+            padding:12px 24px;
+            background:linear-gradient(135deg,#4f46e5,#7c3aed);
+            color:#fff;border:none;border-radius:10px;
+            font-size:0.95em;font-weight:700;cursor:pointer;
+            box-shadow:0 4px 18px rgba(99,102,241,.45);
+            white-space:nowrap;
+          "
+        >📑 Generate Report</button>
+      </div>
+      <ul style="color:var(--text2);font-size:0.88em;line-height:2;padding-left:20px;margin-top:4px">
+        <li>Research question &amp; PICOC framework</li>
         <li>Methods: inclusion/exclusion criteria, databases, date filters</li>
         <li>PRISMA-style search flow</li>
         <li>Evidence table with quality ratings</li>
         <li>Narrative synthesis</li>
-        <li>Implications & limitations</li>
+        <li>Implications &amp; limitations</li>
         <li>Full reference list</li>
       </ul>
-      <div style="margin-top:20px;display:flex;gap:12px">
-        <button class="btn btn-primary" onclick="window.open('/api/export/${State.project.id}/html','_blank')">📄 Open Full Report</button>
-        <button class="btn btn-secondary" onclick="window.open('/api/export/${State.project.id}/html','_blank');setTimeout(()=>toast('Use Ctrl+P → Save as PDF','info'),1000)">🖨 Print to PDF</button>
+      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="generateReport()">📄 Open Full Report</button>
+        <button class="btn btn-secondary" onclick="generateReport();setTimeout(()=>toast('Use Ctrl+P → Save as PDF','info'),1200)">🖨 Print / Save as PDF</button>
       </div>
+      <p style="margin-top:14px;font-size:0.78em;color:var(--text3);border-top:1px solid var(--border);padding-top:10px">
+        💡 For EMR submission: open report → Ctrl+P → Save as PDF. Max 3,000 words excl. references.
+      </p>
     </div>`);
+}
+
+// ===== GENERATE REPORT =====
+function generateReport() {
+  if (!State.project) { toast('No project open', 'error'); return; }
+  window.open(`/api/export/${State.project.id}/html`, '_blank');
+  setTimeout(() => toast('Report opened — use Ctrl+P to save as PDF', 'info'), 800);
 }

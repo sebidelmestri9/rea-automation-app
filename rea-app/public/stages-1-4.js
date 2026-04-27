@@ -13,9 +13,31 @@ function renderSidebar() {
         ${i < STAGES.length - 1 ? '<div class="step-connector"></div>' : ''}
       </div>`;
   }).join('');
+
+  // ── Generate Report CTA: visible once all 10 stages are reached ──
+  if (State.project && cur >= 10) {
+    nav.innerHTML += `
+      <div style="padding:14px 10px 4px">
+        <button
+          id="btn-sidebar-report"
+          onclick="generateReport()"
+          style="
+            width:100%;padding:11px 0;
+            background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);
+            color:#fff;border:none;border-radius:10px;
+            font-size:0.85em;font-weight:700;letter-spacing:0.02em;
+            cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;
+            box-shadow:0 4px 18px rgba(99,102,241,.45);
+            animation:reportPulse 2.5s ease-in-out infinite;
+          "
+        >📑 Generate Report</button>
+      </div>`;
+  }
+
   document.getElementById('sidebar-project-name').innerHTML =
     State.project ? `<strong>${esc(State.project.name)}</strong>` : 'No project open';
 }
+
 
 // ===== HOME =====
 async function renderHome() {
