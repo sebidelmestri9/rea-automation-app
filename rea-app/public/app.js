@@ -324,6 +324,42 @@ const Stages = {
   },
 
   // ── Stage 9 ──────────────────────────────────────────────────────────────────
+  async aiImplications() {
+    const btn = document.getElementById('btn-ai-impl');
+    const spinner = document.getElementById('impl-spinner');
+    if (btn) btn.disabled = true;
+    if (spinner) spinner.style.display = 'flex';
+    toast('Generating practical implications (~10s)…', 'info');
+    try {
+      const res = await API.post(`/api/synthesis/${State.project.id}/ai-implications`, {});
+      const el = document.getElementById('synth-implications');
+      if (el && res.implications) el.value = res.implications;
+      toast('Implications generated ✓', 'success');
+    } catch(e) { toast('AI error: ' + e.message, 'error'); }
+    finally {
+      if (btn) btn.disabled = false;
+      if (spinner) spinner.style.display = 'none';
+    }
+  },
+
+  async aiLimitations() {
+    const btn = document.getElementById('btn-ai-lim');
+    const spinner = document.getElementById('lim-spinner');
+    if (btn) btn.disabled = true;
+    if (spinner) spinner.style.display = 'flex';
+    toast('Generating limitations (~10s)…', 'info');
+    try {
+      const res = await API.post(`/api/synthesis/${State.project.id}/ai-limitations`, {});
+      const el = document.getElementById('synth-limitations');
+      if (el && res.limitations) el.value = res.limitations;
+      toast('Limitations generated ✓', 'success');
+    } catch(e) { toast('AI error: ' + e.message, 'error'); }
+    finally {
+      if (btn) btn.disabled = false;
+      if (spinner) spinner.style.display = 'none';
+    }
+  },
+
   async aiSynthesis() {
     const spinner = document.getElementById('synth-spinner');
     if (spinner) spinner.style.display = 'flex';

@@ -4,20 +4,20 @@ import { db } from '../database.js';
 const router = Router();
 
 // GET /api/export/:projectId/html — full HTML report
-router.get('/:projectId/html', (req, res) => {
+router.get('/:projectId/html', async (req, res) => {
   const { projectId } = req.params;
-  const project = db.findById('projects', projectId);
+  const project = await db.findById('projects', projectId);
   if (!project) return res.status(404).json({ error: 'Project not found' });
 
-  const included = db.findWhere('decisions', d =>
+  const included = (await db.findWhere('decisions', d =>
     d.projectId === projectId && d.decision === 'include'
-  ).map(d => d.paperId);
-  const papers = db.findWhere('papers', p => included.includes(p.id));
-  const extractions = db.findWhere('extractions', e => e.projectId === projectId);
-  const appraisals = db.findWhere('appraisals', a => a.projectId === projectId);
-  const synthRows = db.findWhere('synthesis', s => s.projectId === projectId);
-  const synthesis = synthRows[0]?.content || 'Synthesis not yet generated.';
-  const stats = buildStats(projectId);
+  )).map(d => d.paperId);
+  const papers      = await db.findWhere('papers',      p => included.includes(p.id));
+  const extractions = await db.findWhere('extractions', e => e.projectId === projectId);
+  const appraisals  = await db.findWhere('appraisals',  a => a.projectId === projectId);
+  const synthRows   = await db.findWhere('synthesis',   s => s.projectId === projectId);
+  const synthesis   = synthRows[0]?.content || 'Synthesis not yet generated.';
+  const stats       = await buildStats(projectId);
 
   const html = generateHTML(project, papers, extractions, appraisals, synthesis, stats);
   res.setHeader('Content-Type', 'text/html');
@@ -25,11 +25,11 @@ router.get('/:projectId/html', (req, res) => {
   res.send(html);
 });
 
-function buildStats(projectId) {
-  const papers = db.findWhere('papers', p => p.projectId === projectId);
-  const decisions = db.findWhere('decisions', d => d.projectId === projectId);
+async function buildStats(projectId) {
+  const papers    = await db.findWhere('papers',    p => p.projectId === projectId);
+  const decisions = await db.findWhere('decisions', d => d.projectId === projectId);
   return {
-    total: papers.length,
+    total:    papers.length,
     included: decisions.filter(d => d.decision === 'include').length,
     excluded: decisions.filter(d => d.decision === 'exclude').length,
   };
@@ -40,7 +40,7 @@ function esc(str) {
 }
 
 function generateHTML(project, papers, extractions, appraisals, synthesis, stats) {
-  const extractMap = Object.fromEntries(extractions.map(e => [e.paperId, e]));
+  const extractMap   = Object.fromEntries(extractions.map(e => [e.paperId, e]));
   const appraisalMap = Object.fromEntries(appraisals.map(a => [a.paperId, a]));
   const today = new Date().toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' });
 

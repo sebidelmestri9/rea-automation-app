@@ -258,12 +258,20 @@ async function renderStage9() {
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
       <div class="card">
-        <label class="form-label">Practical Implications</label>
-        <textarea class="form-control" id="synth-implications" rows="4" placeholder="What do findings mean for management practice?">${esc(synth?.implications||'')}</textarea>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <label class="form-label" style="margin:0">Practical Implications</label>
+          <button class="btn btn-ai btn-sm" onclick="Stages.aiImplications()" id="btn-ai-impl">✦ Generate with AI</button>
+        </div>
+        <div id="impl-spinner" style="display:none;font-size:0.8em;color:var(--text2);margin-bottom:6px"><span class="spinner" style="width:12px;height:12px;margin-right:6px"></span>Generating…</div>
+        <textarea class="form-control" id="synth-implications" rows="5" placeholder="Click ✦ Generate with AI or write manually…">${esc(synth?.implications||'')}</textarea>
       </div>
       <div class="card">
-        <label class="form-label">Limitations of this REA</label>
-        <textarea class="form-control" id="synth-limitations" rows="4" placeholder="Acknowledge scope, bias, recency…">${esc(synth?.limitations||'')}</textarea>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <label class="form-label" style="margin:0">Limitations of this REA</label>
+          <button class="btn btn-ai btn-sm" onclick="Stages.aiLimitations()" id="btn-ai-lim">✦ Generate with AI</button>
+        </div>
+        <div id="lim-spinner" style="display:none;font-size:0.8em;color:var(--text2);margin-bottom:6px"><span class="spinner" style="width:12px;height:12px;margin-right:6px"></span>Generating…</div>
+        <textarea class="form-control" id="synth-limitations" rows="5" placeholder="Click ✦ Generate with AI or write manually…">${esc(synth?.limitations||'')}</textarea>
       </div>
     </div>`);
 }

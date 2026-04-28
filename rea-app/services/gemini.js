@@ -2,11 +2,37 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import 'dotenv/config';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+// gemini-flash-latest: always resolves to the current best available flash model
+// Use this alias to avoid hitting per-model daily quota caps on specific model names
+const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/**
+ * Call Gemini with automatic retry on 429 rate-limit errors.
+ * Waits the time the API suggests before retrying (up to 3 attempts).
+ */
 async function ask(prompt) {
-  const result = await model.generateContent(prompt);
-  return result.response.text();
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const result = await model.generateContent(prompt);
+      return result.response.text();
+    } catch (err) {
+      lastErr = err;
+      const msg = err.message || '';
+      // Parse "retry in X.Ys" — use float parse to avoid capturing decimal digits
+      const match = msg.match(/retry in (\d+(?:\.\d+)?)\s*s/i);
+      const waitSec = match ? Math.ceil(parseFloat(match[1])) + 3 : 15;
+      if (msg.includes('429') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+        console.warn(`[Gemini] Rate limited. Waiting ${waitSec}s before retry ${attempt + 1}/3…`);
+        await delay(waitSec * 1000);
+      } else {
+        throw err;
+      }
+    }
+  }
+  throw lastErr;
 }
 
 async function askJSON(prompt) {
@@ -20,11 +46,11 @@ async function askJSON(prompt) {
   }
 }
 
-// Rate limit: 15 req/min free tier → 1 call per ~4s to be safe
-function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+// Rate limit: 15 req/min free tier → 1 call per ~5s to be safe
+async function rateDelay() { await delay(5000); }
 
 export async function scoreRelevance(paper, picoc) {
-  await delay(4000);
+  await rateDelay();
   const prompt = `You are an expert research screener for a Rapid Evidence Assessment (REA).
 
 PICOC PROTOCOL:
@@ -49,7 +75,7 @@ Return JSON with keys: score (0-100), reason (1-2 sentences), pico (object with 
 }
 
 export async function extractData(paper) {
-  await delay(4000);
+  await rateDelay();
   const prompt = `You are a research data extractor for a systematic review on pet dogs in workplaces and employee well-being.
 
 Extract structured data from this paper:
@@ -73,7 +99,7 @@ Return JSON with these keys:
 }
 
 export async function prefilQuality(paper) {
-  await delay(4000);
+  await rateDelay();
   const prompt = `You are a quality appraiser for a mixed-methods systematic review.
 
 Assess study quality using these 8 criteria (yes/no/unclear for each):
@@ -89,7 +115,7 @@ Assess study quality using these 8 criteria (yes/no/unclear for each):
 Paper:
 Title: ${paper.title}
 Abstract: ${paper.abstract || 'No abstract available'}
-Study design: ${paper.extractedData?.study_design || 'unknown'}
+Study design: ${paper.extractedData?.study_design || paper.extractedData?.studyDesign || 'unknown'}
 
 Return JSON:
 {
@@ -110,7 +136,7 @@ Return JSON:
 
 export async function generateSynthesis(papers, subQuestions, picoc) {
   const summaries = papers.slice(0, 15).map((p, i) =>
-    `[${i + 1}] ${p.title} (${p.year}) — ${p.extractedData?.key_findings || p.abstract?.slice(0, 200) || 'No summary'}`
+    `[${i + 1}] ${p.title} (${p.year}) — ${p.extractedData?.key_findings || p.extractedData?.keyFindings || p.abstract?.slice(0, 200) || 'No summary'}`
   ).join('\n');
 
   const prompt = `You are synthesising evidence for a Rapid Evidence Assessment on: Does dog presence in workplaces improve employee well-being?
@@ -133,6 +159,61 @@ Write a structured narrative synthesis covering these themes:
 Use academic language. Cite studies as [1], [2], etc. Reference the numbered list above.
 Write approximately 800-1000 words in flowing paragraphs. Do NOT use JSON.`;
 
-  await delay(4000);
+  await rateDelay();
+  return ask(prompt);
+}
+
+export async function generateImplications(project, papers, extractions, appraisals, synthesisText) {
+  await rateDelay();
+
+  const highQuality = appraisals.filter(a => a.overall_rating === 'high' || a.overall || a.overall === 'high').length;
+  const settings = [...new Set(extractions.map(e => e.workplace_setting || e.population).filter(Boolean))].slice(0, 6).join(', ');
+  const synthSnippet = synthesisText ? synthesisText.slice(0, 800) : 'No synthesis available yet.';
+
+  const prompt = `You are writing the "Practical Implications" section of a Rapid Evidence Assessment (REA) for Evidence-Based Management.
+
+TOPIC: Pet dogs in the workplace and employee well-being
+PRIMARY QUESTION: ${project.primaryQuestion || project.question || 'Does dog presence in workplaces improve employee well-being?'}
+INCLUDED STUDIES: ${papers.length} papers
+HIGH-QUALITY STUDIES: ${highQuality}
+WORKPLACE SETTINGS COVERED: ${settings || 'varied'}
+SYNTHESIS EXCERPT: ${synthSnippet}
+
+Write a focused, practical "Implications for Practice" section (250-350 words) aimed at HR managers, business leaders, and organisational policy-makers. Structure it as follows:
+1. What the evidence suggests practitioners should consider (2-3 concrete, evidence-grounded recommendations)
+2. Conditions under which dog-friendly policies are most likely to benefit employees
+3. What managers should be cautious about (e.g. allergies, phobias, disruption)
+4. A brief statement on the strength of the evidence base and how confident practitioners should be
+
+Use clear, professional language. Do not use bullet points — write in flowing paragraphs. Do NOT use JSON.`;
+
+  return ask(prompt);
+}
+
+export async function generateLimitations(project, papers, synthesisText) {
+  await rateDelay();
+
+  const databases = (project.databases || ['PubMed', 'Semantic Scholar', 'OpenAlex']).join(', ');
+  const dateRange = project.dateRange ? `${project.dateRange.from}–${project.dateRange.to}` : '2000–2026';
+  const synthSnippet = synthesisText ? synthesisText.slice(0, 400) : '';
+
+  const prompt = `You are writing the "Limitations" section of a Rapid Evidence Assessment (REA) for Evidence-Based Management.
+
+TOPIC: Pet dogs in the workplace and employee well-being
+DATABASES SEARCHED: ${databases}
+DATE RANGE: ${dateRange}
+NUMBER OF INCLUDED STUDIES: ${papers.length}
+THIS IS A RAPID EVIDENCE ASSESSMENT (not a full systematic review)
+${synthSnippet ? `SYNTHESIS CONTEXT: ${synthSnippet}` : ''}
+
+Write a concise "Limitations of this REA" section (200-280 words) covering:
+1. Scope limitations (databases searched, grey literature excluded, language restriction to English)
+2. Methodological limitations of the REA process itself (speed vs rigour trade-off, potential for missed studies)
+3. Limitations of the evidence base (small sample sizes in primary studies, heterogeneity, lack of RCTs, possible publication bias)
+4. AI-assistance limitations (AI-assisted screening and extraction may introduce systematic errors; all outputs were reviewed by the researcher)
+5. Generalisability (most studies from Western contexts, specific workplace types)
+
+Write in flowing paragraphs, in clear academic English. Do not use bullet points or numbered lists. Do NOT use JSON.`;
+
   return ask(prompt);
 }

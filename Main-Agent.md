@@ -9,20 +9,22 @@
 ## Purpose
 This agent automates the complete REA process from problem scoping to final report generation. It coordinates multiple sub-systems (literature search APIs, AI analysis, human review interfaces) to produce timely, rigorous evidence syntheses for management decision-making.
 
-## Workflow Architecture (10 Stages)
+## Workflow Architecture (12 Stages)
 
-| Stage | Name | Automation | Human Role |
-|-------|------|-----------|------------|
-| 1 | Research Question & PICOC | AI parses PICOC from free text | Define question, review/edit PICOC |
-| 2 | Protocol | Auto-generates search structure | Set inclusion/exclusion criteria |
-| 3 | Literature Search | Searches 3 databases simultaneously | Approve/edit search strings |
-| 4 | Deduplication | Auto-deduplicates by DOI + title | Review summary counts |
-| 5 | Title/Abstract Screening | AI scores relevance (0–100%) | Include / Exclude / Unsure per paper |
-| 6 | Full-Text Screening | Provides DOI links | Final include/exclude decision |
-| 7 | Data Extraction | AI extracts PICOC-aligned data | Verify/edit extracted fields |
-| 8 | Quality Appraisal | Checklist pre-framework | Rate each criterion |
-| 9 | Synthesis | AI generates narrative | Review/edit synthesis |
-| 10 | Report | Auto-generates HTML report | Export / print to PDF |
+| Phase | Stage | Name | Automation | Human Role |
+|-------|-------|------|-----------|------------|
+| **Ask** | 1 | Background | Pre-filled from user input | Review and edit research context |
+| **Ask** | 2 | Question & Sub-questions | Pre-filled PICOC + 14 sub-questions | Edit primary question and PICOC |
+| **Acquire** | 3 | Inclusion Criteria | Pre-filled from protocol | Confirm inclusion/exclusion criteria |
+| **Acquire** | 4 | Search Strategy | Pre-filled Boolean + DB-specific strings | Edit strings, set date range, run search |
+| **Acquire** | 5 | Study Selection | AI relevance scoring (0–100%) | Include / Exclude / Unsure per paper |
+| **Acquire** | 6 | Data Extraction | AI extracts 8 PICOC-aligned fields | Verify/edit extracted fields |
+| **Appraise** | 7 | Critical Appraisal | AI pre-fills 8-criterion MMAT checklist | Rate each criterion, set overall quality |
+| **Aggregate** | 8 | Results | Auto-generates evidence summary tables | Review study characteristic overview |
+| **Aggregate** | 9 | Synthesis | AI generates ~800-word narrative | Review and edit thematic synthesis |
+| **Aggregate** | 10 | Conclusion | — | Write overall conclusion from evidence |
+| **Aggregate** | 11 | Limitations | Pre-filled common REA limitations | Review and edit, set confidence level |
+| **Apply** | 12 | Implications & Recommendations | Auto-generates HTML/PDF report | Write practitioner recommendations, export |
 
 ## Connected APIs & Services
 
@@ -32,7 +34,7 @@ This agent automates the complete REA process from problem scoping to final repo
 - **PubMed E-utilities** — NCBI biomedical database, useful for HR/organisational health studies
 
 ### AI Services
-- **Google Gemini 1.5 Flash** — PICOC parsing, relevance scoring, data extraction, narrative synthesis (free tier: 1,500 req/day)
+- **Google Gemini 2.5 Flash** — PICOC parsing, relevance scoring, data extraction, narrative synthesis (free tier: 1,500 req/day)
 
 ### Storage
 - **SQLite (local)** — All project data, paper metadata, screening decisions, extracted data, quality scores persisted locally
@@ -73,4 +75,4 @@ node server.js
 ## First-Time Setup
 1. Paste Gemini API key in Settings (sidebar → Settings)
 2. Click **Test Connection** to verify
-3. Create a new REA project and follow the 10-stage wizard
+3. Create a new REA project and follow the 12-stage wizard
