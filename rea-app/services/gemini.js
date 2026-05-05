@@ -49,6 +49,18 @@ async function askJSON(prompt) {
 // Rate limit: 15 req/min free tier → 1 call per ~5s to be safe
 async function rateDelay() { await delay(5000); }
 
+export async function parsePicoc(question) {
+  const prompt = `You are a research methodology expert. Given the following research question, extract the PICOC framework components.
+
+Research Question: "${question}"
+
+Return a JSON object with these keys: population, intervention, comparison, outcome, context.
+Each value should be a concise phrase (max 2 sentences) describing that PICOC element as it relates to the research question.
+If an element is not clearly stated in the question, make a reasonable inference based on the context.`;
+
+  return askJSON(prompt);
+}
+
 export async function scoreRelevance(paper, picoc) {
   await rateDelay();
   const prompt = `You are an expert research screener for a Rapid Evidence Assessment (REA).
@@ -217,3 +229,167 @@ Write in flowing paragraphs, in clear academic English. Do not use bullet points
 
   return ask(prompt);
 }
+
+export async function enhanceBackground(rawText, researchQuestion) {
+  await rateDelay();
+
+  const prompt = `You are a research writing assistant helping a student or practitioner write the "Background" section of a Rapid Evidence Assessment (REA) for Evidence-Based Management.
+
+The user has written the following rough background notes:
+
+"""
+${rawText}
+"""
+
+${researchQuestion ? `Their preliminary research question is: "${researchQuestion}"` : ''}
+
+Your task is to enhance this raw text into a polished, professional Background section that clearly addresses all three key questions of an REA background:
+1. What is the matter of interest and what is the problem?
+2. What is the context of the problem? (e.g., sector, organisational setting, history, characteristics)
+3. What is the rationale for conducting the REA — why is this question important, and for whom?
+
+Guidelines:
+- Preserve the user's original ideas, examples, and details — do not invent facts
+- Write in clear, professional, academic English suitable for an Evidence-Based Management REA
+- Structure the enhanced text as 2–3 flowing paragraphs (no bullet points, no headers)
+- Keep it concise: approximately 150–250 words
+- Do not say "In conclusion", "Overall", or add a closing summary paragraph
+- Do NOT use JSON — return plain text paragraphs only`;
+
+  return ask(prompt);
+}
+
+export async function refineQuestion(background, picoc, rawQuestion) {
+  await rateDelay();
+  const prompt = `You are an expert in research methodology, helping to refine a research question for a Rapid Evidence Assessment.
+
+BACKGROUND:
+${background || 'Not provided'}
+
+PICOC FRAMEWORK:
+- Population: ${picoc.population || 'Not provided'}
+- Intervention: ${picoc.intervention || 'Not provided'}
+- Comparison: ${picoc.comparison || 'Not provided'}
+- Outcome: ${picoc.outcome || 'Not provided'}
+- Context: ${picoc.context || 'Not provided'}
+
+DRAFT QUESTION:
+${rawQuestion}
+
+Task: Refine the draft question into a clear, focused, and academic research question that accurately reflects the PICOC framework and background context.
+The question should be analytical, not too broad, and not too narrow.
+
+Return JSON with exactly this format:
+{
+  "refined_question": "The newly polished research question string"
+}`;
+
+  return askJSON(prompt);
+}
+
+export async function suggestSearchConcepts(question, picoc) {
+  await rateDelay();
+  const prompt = `You are a research librarian expert at breaking down research questions into search concepts and Boolean logic.
+
+RESEARCH QUESTION:
+${question}
+
+PICOC FRAMEWORK:
+- Population: ${picoc.population || 'Not provided'}
+- Intervention: ${picoc.intervention || 'Not provided'}
+- Comparison: ${picoc.comparison || 'Not provided'}
+- Outcome: ${picoc.outcome || 'Not provided'}
+- Context: ${picoc.context || 'Not provided'}
+
+Task: Extract the key search concepts from the question and PICOC.
+Provide them grouped by the logical concepts (e.g. Concept 1: Population, Concept 2: Intervention, etc).
+For each group, provide 2-4 synonyms or related terms.
+Then, provide a preview of the Boolean search string connecting these groups with AND, and terms within groups with OR.
+
+Return JSON with exactly this format:
+{
+  "concept_groups": [
+    {
+      "name": "Population",
+      "terms": ["term1", "term2"]
+    },
+    {
+      "name": "Intervention",
+      "terms": ["term3", "term4"]
+    }
+  ],
+  "boolean_string": "(term1 OR term2) AND (term3 OR term4)"
+}`;
+
+  return askJSON(prompt);
+}
+export async function generateCriteria(project, benchmarkText) {
+  await rateDelay();
+
+  const prompt = `You are a research methodology expert helping to design a Rapid Evidence Assessment.
+
+RESEARCH QUESTION: ${project.question || project.primaryQuestion || 'Not specified'}
+
+PICOC FRAMEWORK:
+- Population: ${project.picoc?.population || 'Not specified'}
+- Intervention: ${project.picoc?.intervention || 'Not specified'}
+- Comparison: ${project.picoc?.comparison || 'Not specified'}
+- Outcome: ${project.picoc?.outcome || 'Not specified'}
+- Context: ${project.picoc?.context || 'Not specified'}
+
+${benchmarkText ? `BENCHMARK ARTICLES (TRIAL & ERROR):\nThe following are examples of articles that the researcher considers highly relevant or irrelevant (as a scoping search):\n${benchmarkText}\n\nAnalyze these examples to better understand the desired scope.` : ''}
+
+Based on the research question, PICOC framework, and benchmark articles (if provided), suggest 4-6 specific INCLUSION criteria and 4-6 specific EXCLUSION criteria. 
+Make them actionable, well-justified, and directly applicable to screening abstracts and full texts. 
+Include criteria on study design, population, intervention, context, and language/date if appropriate.
+
+Return ONLY a valid JSON object with these keys:
+{
+  "inclusion": ["criterion 1", "criterion 2", ...],
+  "exclusion": ["criterion 1", "criterion 2", ...]
+}`;
+
+  return askJSON(prompt);
+}
+
+export async function generateSearchStrings(project) {
+  await rateDelay();
+
+  const picoc = project.picoc || {};
+  const question = project.question || project.primaryQuestion || '';
+  const concepts = project.searchConcepts || [];
+  
+  const prompt = `You are an expert academic librarian helping to construct search strings for a Rapid Evidence Assessment.
+
+RESEARCH QUESTION: ${question}
+
+PICOC FRAMEWORK:
+- Population: ${picoc.population || 'N/A'}
+- Intervention: ${picoc.intervention || 'N/A'}
+- Comparison: ${picoc.comparison || 'N/A'}
+- Outcome: ${picoc.outcome || 'N/A'}
+- Context: ${picoc.context || 'N/A'}
+
+${concepts.length > 0 ? `KEY CONCEPTS:\n${concepts.map(c => `- ${c.name}: ${c.terms.join(', ')}`).join('\n')}` : ''}
+
+Please generate optimized search strings for the following databases:
+1. semantic_scholar: Use a simple, flat keyword string without complex boolean operators, focusing on the most critical 4-6 terms.
+2. openAlex: Similar to Semantic Scholar, use a flat keyword string.
+3. pubmed: Use proper PubMed syntax with Medical Subject Headings (MeSH) if applicable, and [tiab] or [tw] tags. Group concepts with OR and combine with AND.
+4. scopus: Use proper Scopus syntax with TITLE-ABS-KEY(...) tags. Group concepts with OR and combine with AND.
+5. psycinfo: Use standard APA PsycNet syntax with TI(...) OR AB(...) tags, or general Boolean structure suitable for Ovid/EBSCO.
+6. core: A generic fallback Boolean string.
+
+Return ONLY a valid JSON object with these exact keys:
+{
+  "semantic_scholar": "...",
+  "openAlex": "...",
+  "pubmed": "...",
+  "scopus": "...",
+  "psycinfo": "...",
+  "core": "..."
+}`;
+
+  return askJSON(prompt);
+}
+

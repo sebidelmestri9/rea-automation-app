@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { db } from '../database.js';
 import { SEED_PROTOCOL } from '../protocol-seed.js';
+import * as gemini from '../services/gemini.js';
+
 
 const router = Router();
 
@@ -77,6 +79,85 @@ router.get('/:id/stats', async (req, res) => {
     appraised:   appraisals.length,
     synthesised: synthesis.length > 0,
   });
+});
+
+// AI: Enhance background text (Stage 1)
+router.post('/:id/ai-enhance-background', async (req, res) => {
+  try {
+    const { text, question } = req.body;
+    if (!text) return res.status(400).json({ error: 'text is required' });
+    const enhanced = await gemini.enhanceBackground(text, question || '');
+    res.json({ enhanced });
+  } catch (e) {
+    console.error('[ai-enhance-background]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// AI: Parse PICOC from research question (Stage 1)
+router.post('/:id/ai-picoc', async (req, res) => {
+  try {
+    const { question } = req.body;
+    if (!question) return res.status(400).json({ error: 'question required' });
+    const picoc = await gemini.parsePicoc(question);
+    res.json({ picoc });
+  } catch (e) {
+    console.error('[ai-picoc]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// AI: Suggest Inclusion/Exclusion Criteria (Stage 2)
+router.post('/:id/ai-criteria', async (req, res) => {
+  try {
+    const { benchmarkText } = req.body;
+    const project = await db.findById('projects', req.params.id);
+    if (!project) return res.status(404).json({ error: 'Not found' });
+    const criteria = await gemini.generateCriteria(project, benchmarkText || '');
+    res.json({ criteria });
+  } catch (e) {
+    console.error('[ai-criteria]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// AI: Refine Research Question (Stage 2)
+router.post('/:id/ai-refine-question', async (req, res) => {
+  try {
+    const { background, picoc, question } = req.body;
+    if (!question) return res.status(400).json({ error: 'question required' });
+    const result = await gemini.refineQuestion(background, picoc, question);
+    res.json(result);
+  } catch (e) {
+    console.error('[ai-refine-question]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// AI: Suggest Search Concepts (Stage 2)
+router.post('/:id/ai-suggest-concepts', async (req, res) => {
+  try {
+    const { question, picoc } = req.body;
+    if (!question) return res.status(400).json({ error: 'question required' });
+    const result = await gemini.suggestSearchConcepts(question, picoc);
+    res.json(result);
+  } catch (e) {
+    console.error('[ai-suggest-concepts]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// AI: Generate Search Strings (Stage 4)
+router.post('/:id/ai-search-strings', async (req, res) => {
+  try {
+    const project = await db.findById('projects', req.params.id);
+    if (!project) return res.status(404).json({ error: 'Not found' });
+    const searchStrings = await gemini.generateSearchStrings(project);
+    res.json({ searchStrings });
+  } catch (e) {
+    console.error('[ai-search-strings]', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 export default router;

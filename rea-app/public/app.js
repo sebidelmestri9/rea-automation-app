@@ -30,7 +30,8 @@ const App = {
     renderSidebar();
     const renderers = [null,
       renderStage1, renderStage2, renderStage3, renderStage4, renderStage5,
-      renderStage6, renderStage7, renderStage8, renderStage9, renderStage10
+      renderStage6, renderStage7, renderStage8, renderStage9, renderStage10,
+      renderStage11
     ];
     if (renderers[n]) await renderers[n]();
   },
@@ -94,6 +95,57 @@ const App = {
 // ===== STAGE ACTION HANDLERS (Stages.* called from inline onclick) =============
 const Stages = {
   // ── Stage 1 ──────────────────────────────────────────────────────────────────
+  async aiEnhanceBackground() {
+    const text = document.getElementById('bg-text')?.value.trim();
+    if (!text) { toast('Write some background notes first', 'warning'); return; }
+
+    const btn = document.getElementById('btn-enhance-bg');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="ai-sparkle">✦</span> Enhancing…'; }
+    toast('AI is enhancing your background…', 'info');
+
+    try {
+      const res = await API.post(`/api/projects/${State.project.id}/ai-enhance-background`, {
+        text,
+        question: document.getElementById('q-question')?.value.trim() || ''
+      });
+      const enhanced = res.enhanced || '';
+      const area = document.getElementById('bg-enhanced-area');
+      const textEl = document.getElementById('bg-enhanced-text');
+      if (area && textEl && enhanced) {
+        textEl.innerHTML = enhanced.split(/\n{2,}/).map(p => `<p>${esc(p.trim())}</p>`).join('');
+        area.style.display = 'block';
+        area.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        toast('Enhancement ready — review and accept or keep your original', 'success');
+      }
+    } catch(e) {
+      toast('AI enhancement failed: ' + e.message, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<span class="ai-sparkle">✦</span> Enhance with AI'; }
+    }
+  },
+
+  acceptEnhanced() {
+    const textEl = document.getElementById('bg-enhanced-text');
+    const textarea = document.getElementById('bg-text');
+    if (textEl && textarea) {
+      textarea.value = textEl.innerText || textEl.textContent;
+      if (typeof updateBgWordCount === 'function') updateBgWordCount();
+    }
+    this.dismissEnhanced();
+    toast('Enhanced version applied ✓', 'success');
+  },
+
+  dismissEnhanced() {
+    const area = document.getElementById('bg-enhanced-area');
+    if (area) area.style.display = 'none';
+  },
+
+  clearBackground() {
+    const el = document.getElementById('bg-text');
+    if (el) { el.value = ''; if (typeof updateBgWordCount === 'function') updateBgWordCount(); }
+    this.dismissEnhanced();
+  },
+
   async aiPicoc() {
     const q = document.getElementById('q-question')?.value.trim();
     if (!q) { toast('Enter a research question first', 'warning'); return; }
@@ -112,19 +164,170 @@ const Stages = {
   },
 
   async save1() {
+    const backgroundText = document.getElementById('bg-text')?.value.trim() || '';
     const question = document.getElementById('q-question')?.value.trim() || '';
     const picoc = {};
     ['population','intervention','comparison','outcome','context'].forEach(k => {
       picoc[k] = document.getElementById('picoc-' + k)?.value.trim() || '';
     });
     try {
-      await State.saveProject({ question, picoc, currentStep: Math.max(State.project.currentStep || 1, 2) });
+      await State.saveProject({
+        background: { text: backgroundText },
+        question,
+        picoc,
+        currentStep: Math.max(State.project.currentStep || 1, 2)
+      });
       toast('Stage 1 saved ✓', 'success');
       await App.goStage(2);
     } catch(e) { toast('Save failed: ' + e.message, 'error'); }
   },
 
-  // ── Stage 2 ──────────────────────────────────────────────────────────────────
+    // ── Stage 2 ──────────────────────────────────────────────────────────────────
+
+  async aiPicocAll() {
+    toast('AI extracting PICOC from background...', 'info');
+    try {
+      const res = await API.post(`/api/projects/${State.project.id}/ai-picoc`, { question: State.project.background?.text || '' });
+      const picoc = res.picoc || {};
+      ['population','intervention','comparison','outcome','context'].forEach(k => {
+        const el = document.getElementById('picoc-' + k);
+        if (el && picoc[k]) el.value = picoc[k];
+      });
+      toast('PICOC extracted!', 'success');
+    } catch(e) {
+      toast('AI PICOC failed: ' + e.message, 'error');
+    }
+  },
+
+  async aiPicocField(field) {
+    toast(`AI suggesting ${field}...`, 'info');
+    try {
+      const res = await API.post(`/api/projects/${State.project.id}/ai-picoc`, { question: State.project.background?.text || '' });
+      const picoc = res.picoc || {};
+      const el = document.getElementById('picoc-' + field);
+      if (el && picoc[field]) el.value = picoc[field];
+      toast(`Suggested ${field}`, 'success');
+    } catch(e) {
+      toast('AI suggest failed: ' + e.message, 'error');
+    }
+  },
+
+  composeQuestionFromPicoc() {
+    const p = document.getElementById('picoc-population')?.value.trim();
+    const i = document.getElementById('picoc-intervention')?.value.trim();
+    const c = document.getElementById('picoc-comparison')?.value.trim();
+    const o = document.getElementById('picoc-outcome')?.value.trim();
+    const ctx = document.getElementById('picoc-context')?.value.trim();
+    
+    let q = `What is the effect of ${i || '[Intervention]'}`;
+    if (c) q += ` compared to ${c}`;
+    q += ` on ${o || '[Outcome]'}`;
+    q += ` for ${p || '[Population]'}`;
+    if (ctx) q += ` in ${ctx}`;
+    q += `?`;
+
+    const el = document.getElementById('q-question');
+    if (el) el.value = q;
+  },
+
+  async aiRefineQuestion() {
+    const q = document.getElementById('q-question')?.value.trim();
+    if (!q) { toast('Compose or write a draft question first.', 'warning'); return; }
+    toast('AI refining question...', 'info');
+
+    const picoc = {};
+    ['population','intervention','comparison','outcome','context'].forEach(k => {
+      picoc[k] = document.getElementById('picoc-' + k)?.value.trim() || '';
+    });
+
+    try {
+      const res = await API.post(`/api/projects/${State.project.id}/ai-refine-question`, {
+        background: State.project.background?.text || '',
+        picoc,
+        question: q
+      });
+      if (res.refined_question) {
+        document.getElementById('q-question').value = res.refined_question;
+        toast('Question refined!', 'success');
+      }
+    } catch(e) {
+      toast('AI refine failed: ' + e.message, 'error');
+    }
+  },
+
+  async extractConcepts() {
+    const q = document.getElementById('q-question')?.value.trim();
+    if (!q) { toast('Draft a research question first.', 'warning'); return; }
+    toast('AI extracting concepts...', 'info');
+
+    const picoc = {};
+    ['population','intervention','comparison','outcome','context'].forEach(k => {
+      picoc[k] = document.getElementById('picoc-' + k)?.value.trim() || '';
+    });
+
+    try {
+      const res = await API.post(`/api/projects/${State.project.id}/ai-suggest-concepts`, { question: q, picoc });
+      if (res.concept_groups) {
+        State.project.searchConcepts = res.concept_groups;
+        State.project.booleanString = res.boolean_string;
+        Stages.renderConceptGroups(res.concept_groups);
+        document.getElementById('concept-groups-container').style.display = 'block';
+        document.getElementById('boolean-preview-container').style.display = 'block';
+        document.getElementById('boolean-preview-text').textContent = res.boolean_string;
+        toast('Concepts extracted!', 'success');
+      }
+    } catch(e) {
+      toast('AI concept extraction failed: ' + e.message, 'error');
+    }
+  },
+
+  renderConceptGroups(groups) {
+    const container = document.getElementById('concept-groups-container');
+    if (!container) return;
+
+    container.innerHTML = groups.map((g, idx) => `
+      <div class="concept-group" style="margin-bottom:12px; padding:12px; background:var(--surface); border-radius:var(--radius-sm); border:1px solid var(--border);">
+        <div style="font-weight:600; margin-bottom:8px; font-size:0.9em; display:flex; justify-content:space-between">
+          <span>Concept ${idx + 1}: ${esc(g.name)}</span>
+        </div>
+        <div class="tag-group" style="display:flex; flex-wrap:wrap; gap:8px;">
+          ${g.terms.map(t => `<span class="concept-chip" style="padding:4px 10px; background:var(--bg2); border:1px solid var(--border-active); border-radius:16px; font-size:0.85em; display:inline-flex; align-items:center;">${esc(t)}</span>`).join('')}
+        </div>
+      </div>
+      ${idx < groups.length - 1 ? `<div class="bool-connector" style="text-align:center; margin:8px 0; font-weight:700; color:var(--accent);">AND</div>` : ''}
+    `).join('');
+  },
+
+  async save2() {
+    const picoc = {};
+    let missingPicoc = false;
+    ['population','intervention','comparison','outcome','context'].forEach(k => {
+      const val = document.getElementById('picoc-' + k)?.value.trim();
+      picoc[k] = val || '';
+      if (!val && k !== 'comparison') missingPicoc = true; // comparison is often optional
+    });
+
+    const question = document.getElementById('q-question')?.value.trim();
+    if (!question) { toast('Please compose a research question', 'warning'); return; }
+
+    const concepts = State.project.searchConcepts;
+    if (!concepts || concepts.length === 0) { toast('Please extract search concepts before continuing', 'warning'); return; }
+
+    try {
+      await State.saveProject({
+        picoc,
+        question,
+        searchConcepts: concepts,
+        booleanString: State.project.booleanString,
+        currentStep: Math.max(State.project.currentStep || 1, 3)
+      });
+      toast('Research Question saved ✓', 'success');
+      await App.goStage(3);
+    } catch(e) { toast('Save failed: ' + e.message, 'error'); }
+  },
+
+
+  // ── Stage 3 ──────────────────────────────────────────────────────────────────
   _criteria: { inc: [], exc: [] },
 
   addCriteria(type) {
@@ -135,7 +338,7 @@ const Stages = {
     const li = document.createElement('li');
     li.className = 'criteria-item';
     const idx = list.children.length;
-    li.innerHTML = `${val}<button class="remove-btn" onclick="this.parentElement.remove()">×</button>`;
+    li.innerHTML = `${esc(val)}<button class="remove-btn" onclick="this.parentElement.remove()">×</button>`;
     list.appendChild(li);
     input.value = '';
     input.focus();
@@ -146,30 +349,172 @@ const Stages = {
     list?.children[idx]?.remove();
   },
 
-  async save2() {
+  async aiCriteria() {
+    const btn = document.getElementById('btn-ai-criteria');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="ai-sparkle">✦</span> Generating...'; }
+    toast('AI is analyzing PICOC & benchmarks to suggest criteria...', 'info');
+
+    try {
+      const benchmarkText = document.getElementById('benchmark-text')?.value.trim() || '';
+      const res = await API.post(`/api/projects/${State.project.id}/ai-criteria`, { benchmarkText });
+      const { inclusion, exclusion } = res.criteria || {};
+      
+      if (inclusion && inclusion.length) {
+        const incList = document.getElementById('inc-list');
+        inclusion.forEach(c => {
+          const li = document.createElement('li');
+          li.className = 'criteria-item';
+          li.innerHTML = `${esc(c)}<button class="remove-btn" onclick="this.parentElement.remove()">×</button>`;
+          incList.appendChild(li);
+        });
+      }
+      
+      if (exclusion && exclusion.length) {
+        const excList = document.getElementById('exc-list');
+        exclusion.forEach(c => {
+          const li = document.createElement('li');
+          li.className = 'criteria-item';
+          li.innerHTML = `${esc(c)}<button class="remove-btn" onclick="this.parentElement.remove()">×</button>`;
+          excList.appendChild(li);
+        });
+      }
+      
+      toast('Criteria generated! Please review and modify as needed.', 'success');
+    } catch(e) {
+      toast('AI criteria generation failed: ' + e.message, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<span class="ai-sparkle">✦</span> Suggest Criteria with AI'; }
+    }
+  },
+
+  async save3() {
     const getCriteria = (id) => [...document.querySelectorAll(`#${id} li`)].map(li => li.firstChild?.textContent?.trim() || '').filter(Boolean);
     const inclusionCriteria = getCriteria('inc-list');
     const exclusionCriteria = getCriteria('exc-list');
-    const databases = ['semantic_scholar','openAlex','pubmed'].filter(v => document.getElementById('db-' + v)?.checked);
+    const benchmarkText = document.getElementById('benchmark-text')?.value.trim() || '';
+    
+    try {
+      await State.saveProject({ inclusionCriteria, exclusionCriteria, benchmarkText, currentStep: Math.max(State.project.currentStep || 1, 3) });
+      toast('Protocol saved ✓', 'success');
+      await App.goStage(4);
+    } catch(e) { toast('Save failed: ' + e.message, 'error'); }
+  },
+
+  // ── Stage 4 ──────────────────────────────────────────────────────────────────
+  updateDbPreview() {
+    const p = State.project;
+    const ss = p.searchStrings || {};
+    
+    // Determine selected DBs
+    const ALL_DBS = [
+      { id: 'scopus', name: 'Scopus', type: 'boolean' },
+      { id: 'wos', name: 'Web of Science', type: 'boolean' },
+      { id: 'semantic_scholar', name: 'Semantic Scholar', type: 'semantic' },
+      { id: 'openAlex', name: 'OpenAlex', type: 'semantic' },
+      { id: 'pubmed', name: 'PubMed', type: 'boolean' },
+      { id: 'psycinfo', name: 'PsycINFO', type: 'boolean' },
+      { id: 'bsp', name: 'Business Source Premier', type: 'boolean' },
+      { id: 'abi', name: 'ABI/INFORM', type: 'boolean' }
+    ];
+
+    const selectedIds = ALL_DBS.map(db => db.id).filter(id => document.getElementById('db-' + id)?.checked);
+    const selectedDbs = ALL_DBS.filter(db => selectedIds.includes(db.id));
+
+    const booleanDbs = selectedDbs.filter(db => db.type === 'boolean');
+    const stringDbs = selectedDbs.filter(db => db.type === 'semantic');
+
+    const container = document.getElementById('dynamic-search-strings');
+    if (!container) return;
+
+    if (selectedDbs.length === 0) {
+      container.innerHTML = '<div style="color:var(--text3); font-size:0.9em; padding:16px;">Please select at least one database above to build your search strategy.</div>';
+      return;
+    }
+
+    let html = '<div style="display:grid; gap:20px; margin-top:16px">';
+
+    if (booleanDbs.length > 0) {
+      html += `
+        <div style="padding:16px; background:var(--bg2); border-radius:var(--radius-sm); border:1px solid var(--border);">
+          <div style="font-weight:600; margin-bottom:4px; color:var(--text1);">Exact Boolean Search</div>
+          <div style="font-size:0.85em; color:var(--text2); margin-bottom:12px;">These systems use strict Boolean logic (AND, OR, NOT) and support proximity operators.</div>
+          <div style="display:grid; gap:12px;">
+            ${booleanDbs.map(db => `
+              <div class="form-group" style="margin:0">
+                <label class="form-label" style="font-size:0.8em">${db.name}</label>
+                <textarea class="form-control" id="ss-${db.id}" rows="3" style="font-family:monospace; font-size:0.85em;">${esc(ss[db.id]||ss.core||'')}</textarea>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    if (stringDbs.length > 0) {
+      html += `
+        <div style="padding:16px; background:var(--bg2); border-radius:var(--radius-sm); border:1px solid var(--border);">
+          <div style="font-weight:600; margin-bottom:4px; color:var(--text1);">Semantic/Keyword String Search</div>
+          <div style="font-size:0.85em; color:var(--text2); margin-bottom:12px;">These systems are optimized for natural language or simple keyword strings.</div>
+          <div style="display:grid; gap:12px;">
+            ${stringDbs.map(db => `
+              <div class="form-group" style="margin:0">
+                <label class="form-label" style="font-size:0.8em">${db.name}</label>
+                <textarea class="form-control" id="ss-${db.id}" rows="2" style="font-family:monospace; font-size:0.85em;">${esc(ss[db.id]||ss.core||'')}</textarea>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+  },
+
+  async save4() {
+    const ALL_DB_IDS = ['scopus','wos','semantic_scholar','openAlex','pubmed','psycinfo','bsp','abi'];
+    const databases = ALL_DB_IDS.filter(id => document.getElementById('db-' + id)?.checked);
+    
     const dateRange = {
       from: parseInt(document.getElementById('date-from')?.value) || 2010,
       to: parseInt(document.getElementById('date-to')?.value) || 2026
     };
     const languages = (document.getElementById('lang')?.value || 'English').split(',').map(s => s.trim()).filter(Boolean);
+
+    const searchStrings = {};
+    databases.forEach(db => { searchStrings[db] = document.getElementById('ss-' + db)?.value.trim() || ''; });
+
     try {
-      await State.saveProject({ inclusionCriteria, exclusionCriteria, databases, dateRange, languages, currentStep: Math.max(State.project.currentStep || 1, 3) });
-      toast('Protocol saved ✓', 'success');
-      await App.goStage(3);
+      await State.saveProject({ 
+        databases, 
+        dateRange, 
+        languages, 
+        searchStrings,
+        currentStep: Math.max(State.project.currentStep || 1, 4) 
+      });
+      toast('Stage 4 saved ✓', 'success');
+      await App.goStage(5);
     } catch(e) { toast('Save failed: ' + e.message, 'error'); }
   },
-
-  // ── Stage 3 ──────────────────────────────────────────────────────────────────
   async aiSearchStrings() {
-    toast('AI generating search strings from PICOC…', 'info');
+    toast('AI generating optimized search strings...', 'info');
+    
+    // First, sync current checked DBs
+    const ALL_DB_IDS = ['scopus','wos','semantic_scholar','openAlex','pubmed','psycinfo','bsp','abi'];
+    const dbs = ALL_DB_IDS.filter(id => document.getElementById('db-' + id)?.checked);
+
+    if (dbs.length === 0) {
+      toast('Please select at least one database first', 'warning');
+      return;
+    }
+
     try {
+      // Temporarily save selected DBs so API knows what to generate
+      await State.saveProject({ databases: dbs });
+
       const res = await API.post(`/api/projects/${State.project.id}/ai-search-strings`, {});
       const ss = res.searchStrings || {};
-      const dbs = State.project.databases || ['semantic_scholar','openAlex','pubmed'];
+      
       dbs.forEach(db => {
         const el = document.getElementById('ss-' + db);
         if (el && ss[db]) el.value = ss[db];
@@ -180,21 +525,28 @@ const Stages = {
       // Fallback: auto-compose from PICOC
       const picoc = State.project.picoc || {};
       const base = [picoc.population, picoc.intervention].filter(Boolean).join(' ') || 'dogs workplace wellbeing';
-      const dbs = State.project.databases || ['semantic_scholar','openAlex','pubmed'];
       dbs.forEach(db => { const el = document.getElementById('ss-' + db); if (el && !el.value.trim()) el.value = base; });
       toast('Used PICOC to build search strings (AI unavailable)', 'warning');
     }
   },
 
   async runSearch() {
-    // Save current search strings first
-    const dbs = State.project.databases || ['semantic_scholar','openAlex','pubmed'];
+    // Save current search strings and filters first
+    const ALL_DB_IDS = ['scopus','wos','semantic_scholar','openAlex','pubmed','psycinfo','bsp','abi'];
+    const databases = ALL_DB_IDS.filter(id => document.getElementById('db-' + id)?.checked);
     const searchStrings = {};
-    dbs.forEach(db => { searchStrings[db] = document.getElementById('ss-' + db)?.value.trim() || ''; });
-    await State.saveProject({ searchStrings });
+    databases.forEach(db => { searchStrings[db] = document.getElementById('ss-' + db)?.value.trim() || ''; });
+    
+    const dateRange = {
+      from: parseInt(document.getElementById('date-from')?.value) || 2010,
+      to: parseInt(document.getElementById('date-to')?.value) || 2026
+    };
+    const languages = (document.getElementById('lang')?.value || 'English').split(',').map(s => s.trim()).filter(Boolean);
+
+    await State.saveProject({ searchStrings, databases, dateRange, languages });
 
     const btn = document.getElementById('btn-search');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Searching…'; }
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Searching API Databases…'; }
     document.getElementById('search-status').innerHTML =
       '<div class="loading-overlay" style="position:relative;height:60px"><div class="spinner"></div><span>Searching databases — this may take 30–60 seconds…</span></div>';
 
@@ -244,7 +596,7 @@ const Stages = {
       State.project = proj;
       await State.refreshPapers();
       toast(`Search done — ${proj.searchStats?.newlyAdded || 0} papers added`, 'success');
-      await renderStage3();
+      await renderStage4();
     } else {
       toast('Search still running…', 'info');
     }
@@ -259,7 +611,7 @@ const Stages = {
       let polls = 0;
       const iv = setInterval(async () => {
         polls++;
-        await renderStage5();
+        await renderStage6();
         if (polls > 30) clearInterval(iv);
       }, 15000);
     } catch(e) { toast('AI scoring error: ' + e.message, 'error'); }
@@ -270,7 +622,7 @@ const Stages = {
     toast('AI extracting all included papers — runs in background…', 'info');
     try {
       await API.post(`/api/extraction/${State.project.id}/ai-extract-all`, {});
-      setTimeout(() => renderStage7(), 8000);
+      setTimeout(() => renderStage8(), 8000);
     } catch(e) { toast('AI extraction error: ' + e.message, 'error'); }
   },
 
@@ -278,7 +630,7 @@ const Stages = {
     toast('AI extracting…', 'info');
     try {
       await API.post(`/api/extraction/${State.project.id}/paper/${paperId}/ai`, {});
-      setTimeout(() => renderStage7(), 5000);
+      setTimeout(() => renderStage8(), 5000);
     } catch(e) { toast('AI error: ' + e.message, 'error'); }
   },
 
@@ -308,7 +660,7 @@ const Stages = {
     toast('AI appraising all papers — runs in background…', 'info');
     try {
       await API.post(`/api/appraisal/${State.project.id}/ai-appraise-all`, {});
-      setTimeout(() => renderStage8(), 8000);
+      setTimeout(() => renderStage9(), 8000);
     } catch(e) { toast('AI appraisal error: ' + e.message, 'error'); }
   },
 
@@ -392,7 +744,7 @@ const Stages = {
     const limitations = document.getElementById('synth-limitations')?.value || '';
     try {
       await API.put(`/api/synthesis/${State.project.id}`, { content, implications, limitations });
-      await State.saveProject({ currentStep: Math.max(State.project.currentStep || 1, 10) });
+      await State.saveProject({ currentStep: Math.max(State.project.currentStep || 1, 11) });
       toast('Synthesis saved ✓', 'success');
       await App.goStage(10);
     } catch(e) { toast('Save failed: ' + e.message, 'error'); }
@@ -472,19 +824,22 @@ API.post = async function(url, body) {
 
 // ===== BOOTSTRAP =====
 async function init() {
-  // Try to restore last open project
-  const lastId = localStorage.getItem('rea_last_project');
-  if (lastId) {
-    try {
-      await State.loadProject(lastId);
-      renderSidebar();
-      await App.goStage(State.currentStage || 1);
-      return;
-    } catch(e) {
-      localStorage.removeItem('rea_last_project');
-    }
-  }
+  // Always go home on startup for a "clean slate" as requested
   await renderHome();
 }
+
+window.toggleMobileMenu = function(forceClose = false) {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('sidebar-overlay');
+  if (!sb) return;
+  
+  if (forceClose || sb.classList.contains('open')) {
+    sb.classList.remove('open');
+    if (ov) ov.classList.remove('open');
+  } else {
+    sb.classList.add('open');
+    if (ov) ov.classList.add('open');
+  }
+};
 
 init();

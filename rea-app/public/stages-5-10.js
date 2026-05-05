@@ -1,5 +1,5 @@
-// ===== STAGE 5: TITLE/ABSTRACT SCREENING =====
-async function renderStage5() {
+// ===== STAGE 6: TITLE/ABSTRACT SCREENING =====
+async function renderStage6() {
   // Reload papers with decisions
   let papers = [];
   try {
@@ -22,10 +22,10 @@ async function renderStage5() {
     return true;
   });
 
-  setTopbar('Stage 5 / 10', 'Title & Abstract Screening',
-    `<button class="btn btn-secondary" onclick="App.goStage(4)">← Back</button>
+  setTopbar('Stage 6 / 11', 'Title & Abstract Screening',
+    `<button class="btn btn-secondary" onclick="App.goStage(5)">← Back</button>
      <button class="btn btn-ai" onclick="Stages.aiScoreAll()">✦ AI Score All</button>
-     <button class="btn btn-primary" onclick="App.goStage(6)">Continue →</button>`);
+     <button class="btn btn-primary" onclick="App.goStage(7)">Continue →</button>`);
 
   setContent(`
     <div class="completion-bar">
@@ -34,7 +34,7 @@ async function renderStage5() {
     </div>
     <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
       ${['all','pending','included','excluded','unsure'].map(f=>`
-        <button class="btn btn-sm ${filterVal===f?'btn-primary':'btn-secondary'}" onclick="window._screenFilter='${f}';renderStage5()">${f.charAt(0).toUpperCase()+f.slice(1)}</button>`).join('')}
+        <button class="btn btn-sm ${filterVal===f?'btn-primary':'btn-secondary'}" onclick="window._screenFilter='${f}';renderStage6()">${f.charAt(0).toUpperCase()+f.slice(1)}</button>`).join('')}
       <span style="margin-left:auto;font-size:0.8em;color:var(--text2);align-self:center">Showing ${filtered.length} of ${total}</span>
     </div>
     <div id="paper-list">
@@ -90,8 +90,8 @@ async function screen5(paperId, decision) {
   } catch(e) { toast('Error saving: ' + e.message, 'error'); }
 }
 
-// ===== STAGE 6: FULL-TEXT SCREENING =====
-async function renderStage6() {
+// ===== STAGE 7: FULL-TEXT SCREENING =====
+async function renderStage7() {
   let papers = [];
   try {
     const taAll = await API.get(`/api/screening/${State.project.id}?stage=title_abstract`);
@@ -104,9 +104,9 @@ async function renderStage6() {
   const done = papers.filter(p => p.ftDecision).length;
   const pct = papers.length ? Math.round((done/papers.length)*100) : 0;
 
-  setTopbar('Stage 6 / 10', 'Full-Text Screening',
-    `<button class="btn btn-secondary" onclick="App.goStage(5)">← Back</button>
-     <button class="btn btn-primary" onclick="App.goStage(7)">Continue →</button>`);
+  setTopbar('Stage 7 / 11', 'Full-Text Screening',
+    `<button class="btn btn-secondary" onclick="App.goStage(6)">← Back</button>
+     <button class="btn btn-primary" onclick="App.goStage(8)">Continue →</button>`);
 
   setContent(`
     <div class="section-heading">Full-Text Screening</div>
@@ -146,16 +146,16 @@ async function screen6(paperId, decision) {
   } catch(e) { toast('Error: ' + e.message, 'error'); }
 }
 
-// ===== STAGE 7: DATA EXTRACTION =====
-async function renderStage7() {
+// ===== STAGE 8: DATA EXTRACTION =====
+async function renderStage8() {
   let papers = [];
   try { papers = await API.get(`/api/extraction/${State.project.id}`); } catch(e) { toast('Error: '+e.message,'error'); }
 
   const FIELDS = ['studyDesign','sampleSize','population','intervention','comparison','keyFindings','limitations'];
-  setTopbar('Stage 7 / 10', 'Data Extraction',
-    `<button class="btn btn-secondary" onclick="App.goStage(6)">← Back</button>
+  setTopbar('Stage 8 / 11', 'Data Extraction',
+    `<button class="btn btn-secondary" onclick="App.goStage(7)">← Back</button>
      <button class="btn btn-ai" onclick="Stages.aiExtractAll()">✦ AI Extract All</button>
-     <button class="btn btn-primary" onclick="App.goStage(8)">Continue →</button>`);
+     <button class="btn btn-primary" onclick="App.goStage(9)">Continue →</button>`);
 
   setContent(`
     <div class="section-heading">Data Extraction</div>
@@ -179,8 +179,8 @@ async function renderStage7() {
     }).join('') || '<div class="empty-state"><p>No included papers to extract from.</p></div>'}`);
 }
 
-// ===== STAGE 8: QUALITY APPRAISAL =====
-async function renderStage8() {
+// ===== STAGE 9: QUALITY APPRAISAL =====
+async function renderStage9() {
   let items = [];
   try { items = await API.get(`/api/appraisal/${State.project.id}`); } catch(e) { toast('Error: '+e.message,'error'); }
 
@@ -193,10 +193,10 @@ async function renderStage8() {
     'How transferable/applicable are the findings to management practice?'
   ];
 
-  setTopbar('Stage 8 / 10', 'Quality Appraisal',
-    `<button class="btn btn-secondary" onclick="App.goStage(7)">← Back</button>
+  setTopbar('Stage 9 / 11', 'Quality Appraisal',
+    `<button class="btn btn-secondary" onclick="App.goStage(8)">← Back</button>
      <button class="btn btn-ai" onclick="Stages.aiAppraiseAll()">✦ AI Appraise All</button>
-     <button class="btn btn-primary" onclick="App.goStage(9)">Continue →</button>`);
+     <button class="btn btn-primary" onclick="App.goStage(10)">Continue →</button>`);
 
   setContent(`
     <div class="section-heading">Quality Appraisal</div>
@@ -235,14 +235,14 @@ async function renderStage8() {
     }).join('') || '<div class="empty-state"><p>No included papers to appraise.</p></div>'}`);
 }
 
-// ===== STAGE 9: SYNTHESIS =====
-async function renderStage9() {
+// ===== STAGE 10: SYNTHESIS =====
+async function renderStage10() {
   let synth = null;
   try { synth = await API.get(`/api/synthesis/${State.project.id}`); } catch(e) {}
   const content = synth?.content || '';
 
-  setTopbar('Stage 9 / 10', 'Evidence Synthesis',
-    `<button class="btn btn-secondary" onclick="App.goStage(8)">← Back</button>
+  setTopbar('Stage 10 / 11', 'Evidence Synthesis',
+    `<button class="btn btn-secondary" onclick="App.goStage(9)">← Back</button>
      <button class="btn btn-primary" onclick="Stages.saveSynthesis()">Save & Continue →</button>`);
 
   setContent(`
@@ -276,21 +276,21 @@ async function renderStage9() {
     </div>`);
 }
 
-// ===== STAGE 10: REPORT =====
-async function renderStage10() {
+// ===== STAGE 11: REPORT =====
+async function renderStage11() {
   let stats = {};
   try {
     const sc = await API.get(`/api/screening/${State.project.id}/stats`);
     stats = sc;
   } catch(e) {}
 
-  setTopbar('Stage 10 / 10', 'Final Report',
-    `<button class="btn btn-secondary" onclick="App.goStage(9)">← Back</button>
+  setTopbar('Stage 11 / 11', 'Final Report',
+    `<button class="btn btn-secondary" onclick="App.goStage(10)">← Back</button>
      <button class="btn btn-primary" onclick="generateReport()">📑 Generate Report</button>`);
 
   setContent(`
     <div class="section-heading">🎉 REA Complete</div>
-    <div class="section-sub">All 10 stages done. Generate your full evidence report below.</div>
+    <div class="section-sub">All stages done. Generate your full evidence report below.</div>
     <div class="stats-grid">
       <div class="stat-card"><div class="stat-number">${stats.total||0}</div><div class="stat-label">Records screened</div></div>
       <div class="stat-card"><div class="stat-number">${stats.taIncluded||0}</div><div class="stat-label">After title screening</div></div>

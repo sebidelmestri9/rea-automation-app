@@ -132,16 +132,17 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
 
 // ===== STAGE DEFINITIONS =====
 const STAGES = [
-  { id: 1, label: 'Research Question', sub: 'Define & PICOC' },
-  { id: 2, label: 'Protocol',          sub: 'Criteria & scope' },
-  { id: 3, label: 'Literature Search', sub: 'Multi-database' },
-  { id: 4, label: 'Deduplication',     sub: 'Clean results' },
-  { id: 5, label: 'Title Screening',   sub: 'Include / Exclude' },
-  { id: 6, label: 'Full-Text Screen',  sub: 'Confirm inclusion' },
-  { id: 7, label: 'Data Extraction',   sub: 'Extract evidence' },
-  { id: 8, label: 'Quality Appraisal', sub: 'Rate study quality' },
-  { id: 9, label: 'Synthesis',         sub: 'Narrative summary' },
-  { id: 10, label: 'Report',           sub: 'Export findings' },
+  { id: 1, label: 'Background',         sub: 'Context & rationale' },
+  { id: 2, label: 'Research Question',  sub: 'PICOC & Concepts' },
+  { id: 3, label: 'Protocol',          sub: 'Criteria & scope' },
+  { id: 4, label: 'Literature Search', sub: 'Multi-database' },
+  { id: 5, label: 'Deduplication',     sub: 'Clean results' },
+  { id: 6, label: 'Title Screening',   sub: 'Include / Exclude' },
+  { id: 7, label: 'Full-Text Screen',  sub: 'Confirm inclusion' },
+  { id: 8, label: 'Data Extraction',   sub: 'Extract evidence' },
+  { id: 9, label: 'Quality Appraisal', sub: 'Rate study quality' },
+  { id: 10, label: 'Synthesis',         sub: 'Narrative summary' },
+  { id: 11, label: 'Report',           sub: 'Export findings' },
 ];
 
 // ===== HELPERS =====
